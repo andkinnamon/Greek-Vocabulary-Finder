@@ -35,7 +35,7 @@ class TextPicker(QDialog):
         self.book.currentTextChanged.connect(self.update_chapter_list)
 
         self.confirmButton = QPushButton("Find Cards")
-        self.confirmButton.clicked.connect(self._find_cards_and_make_deck)
+        self.confirmButton.clicked.connect(self._main)
         self.layout.addWidget(self.confirmButton)
 
         self.layout.setContentsMargins(10, 20, 10, 30)
@@ -53,9 +53,9 @@ class TextPicker(QDialog):
 
     def _main(self):
         op = QueryOp(
-        parent=mw,
-        op=lambda 
-    ):
+            parent=mw,
+            op = self._find_cards_and_make_deck()
+            )
 
         # if with_progress() is not called, no progress window will be shown.
         # note: QueryOp.with_progress() was broken until Anki 2.1.50
@@ -69,17 +69,17 @@ class TextPicker(QDialog):
         self.book_list = json.load(book_file)
         book_file.close()
 
-        wordsToFind = self.get_word_list()
-
         col = mw.col
 
-        showInfo(f"Searching for {len(wordsToFind)} words...")
+        self.wordsToFind = self.get_word_list()
+
+        showInfo(f"Searching for {len(self.wordsToFind)} words...")
         
-        idList, missingWords = self.find_words()
+        idList, numMissingWords, n = self.find_words(col)
 
         textToAdd = "<br><br>No missing words"
-        if len(missingWords) != 0:
-            textToAdd = f"<br><br>Missing words: {len(missingWords)}. Check log for details."
+        if numMissingWords != 0:
+            textToAdd = f"<br><br>Missing words: {numMissingWords}. Check log for details."
 
         showInfo(f"Notes found: {n}{textToAdd}")
 
@@ -87,7 +87,7 @@ class TextPicker(QDialog):
 
         col.tags.bulkAdd(idList, tag_name)
 
-        deckName = f"New Greek Vocab - {selectedText}"
+        deckName = f"New Greek Vocab - {self.selectedText}"
         deckId = int(datetime.datetime.now().timestamp()) % 10**9
 
         searchQuery = f"tag:{tag_name} is:new card:1"
@@ -99,16 +99,18 @@ class TextPicker(QDialog):
         col.sched.rebuildDyn(did)
         mw.progress.finish()
 
-        closeTextPicker()
+        self.closeTextPicker() # Probably doesn't work
         
         mw.reset()
 
         showInfo(f"Deck created: {selectedText}")
 
 
-    def get_word_list(self, text=self.selectedText,book_list=self.book_list) -> dict:
+    def get_word_list(self) -> dict:
+        text = self.selectedText
+        book_list = self.book_list
         if text == "Whole Book":
-            text = self.book.currentText()
+            self.selectedText = self.book.currentText()
             wordsToFind = {}
             n = 0
             for chapter in book_list:
@@ -119,7 +121,7 @@ class TextPicker(QDialog):
                     else:
                         wordsToFind[word]["freq"] += 1
         else:
-            wordsToFind = book_list[selectedText]
+            wordsToFind = book_list[text]
 
         return wordsToFind
 
@@ -140,7 +142,9 @@ class TextPicker(QDialog):
     def find_words(self, col):
         idList = []
         missingWords = []
-        for word in wordsToFind:
+        n = 0
+
+        for word in self.wordsToFind:
             ids = col.findNotes(f"\"Dictionary Entry:re:^{word}\\b\" -\"NT Frequency:\"")
             for id in ids:
                 if id not in idList:
@@ -150,6 +154,8 @@ class TextPicker(QDialog):
                 missingWords.append(word)
 
         self.log_missing_words(missingWords)
+
+        return idList, len(missingWords), n
 
 
     def log_missing_words(self, missingWords) -> None:
@@ -162,9 +168,9 @@ class TextPicker(QDialog):
             log.write("\n")
     
 
-    def closeTextPicker() -> None:
+    def closeTextPicker(self) -> None:
         # Beta code: Do not trust
-        textpicker.hide()
+        self.hide()
 
 
     def showProgressBar() -> None:
