@@ -1,4 +1,5 @@
 from aqt import mw
+from aqt import progress as PROG
 from aqt.utils import showInfo
 from aqt.qt import *
 from aqt.operations import QueryOp
@@ -15,6 +16,7 @@ from os import path as Path
 class TextPicker(QDialog):
     def __init__(self):
         QDialog.__init__(self)
+
         self.setWindowTitle("Select Text to Study")
         self.layout = QVBoxLayout()
         self.cardLayout = QHBoxLayout()
@@ -35,12 +37,13 @@ class TextPicker(QDialog):
         self.book.currentTextChanged.connect(self.update_chapter_list)
 
         self.confirmButton = QPushButton("Find Cards")
-        self.confirmButton.clicked.connect(self._find_cards_and_make_deck())
+        self.confirmButton.clicked.connect(self._find_cards_and_make_deck)
         self.layout.addWidget(self.confirmButton)
 
         self.layout.setContentsMargins(10, 20, 10, 30)
 
         self.setLayout(self.layout)
+
 
     def update_chapter_list(self):
         file_path = self.getFilePath()
@@ -51,15 +54,6 @@ class TextPicker(QDialog):
             for chapterNumber in chapter_list:
                 self.chapterList.addItem(chapterNumber)
 
-    def _main(self):
-        op = QueryOp(
-            parent=mw,
-            op = self._find_cards_and_make_deck()
-            )
-
-        # if with_progress() is not called, no progress window will be shown.
-        # note: QueryOp.with_progress() was broken until Anki 2.1.50
-        op.with_progress().run_in_background()
 
     def _find_cards_and_make_deck(self):
         self.selectedText = self.chapterList.currentText()
@@ -69,27 +63,31 @@ class TextPicker(QDialog):
         self.book_list = json.load(book_file)
         book_file.close()
 
-        col = mw.col
+        self.col = mw.col
 
         self.wordsToFind = self.get_word_list()
 
         showInfo(f"Searching for {len(self.wordsToFind)} words...")
+
+        self.found = 0
+        self.total = len(self.wordsToFind)
+
+        self.progress = PROG.ProgressManager(mw)
+        self.progress.start(label=f"{self.found}/{self.total}", max=self.total)
+
+        query_op = QueryOp(parent=self, op=self.find_words(), success=self.success)
+        query_op.with_backend_progress(progress_update=self.progress_update)
+        self.progress.finish()
+
+        self._create_deck(self.idList)
         
-        idList, numMissingWords, n = self.find_words(col)
+        showInfo(f"Deck created: {self.selectedText}")
 
-        textToAdd = "<br><br>No missing words"
-        if numMissingWords != 0:
-            textToAdd = f"<br><br>Missing words: {numMissingWords}. Check log for details."
+        self._delete_tag()
 
-        showInfo(f"Notes found: {n}{textToAdd}")
+        closeTextPicker()
 
-        self._create_deck(col, idList)
-
-        self.closeTextPicker() # Probably doesn't work
-        
         mw.reset()
-
-        showInfo(f"Deck created: {selectedText}")
 
 
     def get_word_list(self) -> dict:
@@ -125,23 +123,32 @@ class TextPicker(QDialog):
         return file_path
     
 
-    def find_words(self, col):
-        idList = []
-        missingWords = []
-        n = 0
+    def find_words(self):
+        self.idList = []
+        self.missingWords = []
+        self.n = 0
+
+        self.progress_update(self.progress, Progress(0, self.total, f"{self.found}/{self.total}"))
+
 
         for word in self.wordsToFind:
-            ids = col.findNotes(f"\"Dictionary Entry:re:^{word}(,|\w|\\b)\" -\"NT Frequency:\"")
+            ids = self.col.findNotes(f"\"Dictionary Entry:re:^{word}$\" -\"NT Frequency:\"")
             for id in ids:
-                if id not in idList:
-                    n += 1
-                    idList.append(id)
+                if id not in self.idList:
+                    self.n += 1
+                    self.idList.append(id)
             if len(ids) == 0:
-                missingWords.append(word)
+                self.missingWords.append(word)
+            
+            self.found += 1
 
-        self.log_missing_words(missingWords)
+            #self.progress.update(label=f"{self.found}/{self.total}", value=self.found, max=self.total)
 
-        return idList, len(missingWords), n
+            self.progress_update(self.progress, Progress(self.found, self.total, f"{self.found}/{self.total}"))
+
+        self.log_missing_words(self.missingWords)
+
+        self.numMissingWords = len(self.missingWords)
 
 
     def log_missing_words(self, missingWords) -> None:
@@ -153,48 +160,59 @@ class TextPicker(QDialog):
                 log.write("\n")
             log.write("\n")
 
-    
-    def _create_deck(col, idList):
-    
-        tag_name = "add-this-tag-to-cards-to-make-temp-deck"
 
-        col.tags.bulkAdd(idList, tag_name)
+    def progress_update(self, progress, update):
+        progress.update(value=update.value, max=update.max, label=update.label)
+    
+
+    def success(self):
+
+        textToAdd = "<br><br>No missing words"
+        if self.numMissingWords != 0:
+            textToAdd = f"<br><br>Missing words: {self.numMissingWords}. Check log for details."
+
+        showInfo(f"Words found: {self.n}{textToAdd}")
+
+    
+    def _create_deck(self, idList):
+    
+        self.tag_name = "add-this-tag-to-cards-to-make-temp-deck"
+
+        self.col.tags.bulkAdd(idList, self.tag_name)
 
         deckName = f"New Greek Vocab - {self.selectedText}"
         deckId = int(datetime.datetime.now().timestamp()) % 10**9
 
-        searchQuery = f"tag:{tag_name} is:new card:1"
+        searchQuery = f"tag:{self.tag_name} is:new card:1"
 
-        did = col.decks.new_filtered(deckName)
-        deck = col.decks.get(did)
+        did = self.col.decks.new_filtered(deckName)
+        deck = self.col.decks.get(did)
         deck["terms"] = [[searchQuery, 1000, DYN_DUE]]
-        col.decks.save(deck)
-        col.sched.rebuildDyn(did)
+        self.col.decks.save(deck)
+        self.col.sched.rebuildDyn(did)
         mw.progress.finish()
-    
 
-    def closeTextPicker(self) -> None:
-        # Beta code: Do not trust
-        self.hide()
+    def _delete_tag(self):
+        tags_manager = tags.TagManager(self.col)
 
+        tags_manager.remove(self.tag_name)
+        # Add code
+        dummy = "Filler text"
 
-    def showProgressBar() -> None:
-        progressBar.show()
-    
-    
-    progressBar = ProgressBar()
-
-class ProgressBar(QDialog):
-        def __init__(self):
-            QDialog.__init__(self)
-            self.setWindowTitle("Select Text to Study")
-            self.layout = QVBoxLayout()
-    
+class Progress:
+    def __init__(self, value: int, max: int, label: str):
+        self.value = value
+        self.max = max
+        self.label = label
 
 textpicker = TextPicker()
 
 def showTextPicker() -> None:
     textpicker.show()
+
+def closeTextPicker() -> None:
+    # Beta code: Do not trust
+    textpicker.hide()
 
 
 action = QAction()
