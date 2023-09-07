@@ -35,7 +35,7 @@ class TextPicker(QDialog):
         self.book.currentTextChanged.connect(self.update_chapter_list)
 
         self.confirmButton = QPushButton("Find Cards")
-        self.confirmButton.clicked.connect(self._main)
+        self.confirmButton.clicked.connect(self._find_cards_and_make_deck())
         self.layout.addWidget(self.confirmButton)
 
         self.layout.setContentsMargins(10, 20, 10, 30)
@@ -83,21 +83,7 @@ class TextPicker(QDialog):
 
         showInfo(f"Notes found: {n}{textToAdd}")
 
-        tag_name = "add-this-tag-to-cards-to-make-temp-deck"
-
-        col.tags.bulkAdd(idList, tag_name)
-
-        deckName = f"New Greek Vocab - {self.selectedText}"
-        deckId = int(datetime.datetime.now().timestamp()) % 10**9
-
-        searchQuery = f"tag:{tag_name} is:new card:1"
-
-        did = col.decks.new_filtered(deckName)
-        deck = col.decks.get(did)
-        deck["terms"] = [[searchQuery, 1000, DYN_DUE]]
-        col.decks.save(deck)
-        col.sched.rebuildDyn(did)
-        mw.progress.finish()
+        self._create_deck(col, idList)
 
         self.closeTextPicker() # Probably doesn't work
         
@@ -145,7 +131,7 @@ class TextPicker(QDialog):
         n = 0
 
         for word in self.wordsToFind:
-            ids = col.findNotes(f"\"Dictionary Entry:re:^{word}\\b\" -\"NT Frequency:\"")
+            ids = col.findNotes(f"\"Dictionary Entry:re:^{word}(,|\w|\\b)\" -\"NT Frequency:\"")
             for id in ids:
                 if id not in idList:
                     n += 1
@@ -166,6 +152,25 @@ class TextPicker(QDialog):
                 log.write(word)
                 log.write("\n")
             log.write("\n")
+
+    
+    def _create_deck(col, idList):
+    
+        tag_name = "add-this-tag-to-cards-to-make-temp-deck"
+
+        col.tags.bulkAdd(idList, tag_name)
+
+        deckName = f"New Greek Vocab - {self.selectedText}"
+        deckId = int(datetime.datetime.now().timestamp()) % 10**9
+
+        searchQuery = f"tag:{tag_name} is:new card:1"
+
+        did = col.decks.new_filtered(deckName)
+        deck = col.decks.get(did)
+        deck["terms"] = [[searchQuery, 1000, DYN_DUE]]
+        col.decks.save(deck)
+        col.sched.rebuildDyn(did)
+        mw.progress.finish()
     
 
     def closeTextPicker(self) -> None:
@@ -174,9 +179,17 @@ class TextPicker(QDialog):
 
 
     def showProgressBar() -> None:
-        # Fill this in later
-        dummy = "This is dummy text"
+        progressBar.show()
+    
+    
+    progressBar = ProgressBar()
 
+class ProgressBar(QDialog):
+        def __init__(self):
+            QDialog.__init__(self)
+            self.setWindowTitle("Select Text to Study")
+            self.layout = QVBoxLayout()
+    
 
 textpicker = TextPicker()
 
