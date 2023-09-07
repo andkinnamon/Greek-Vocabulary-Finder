@@ -3,6 +3,7 @@ from aqt import progress as PROG
 from aqt.utils import showInfo
 from aqt.qt import *
 from aqt.operations import QueryOp
+from aqt.errors import show_exception
 from anki import tags
 from aqt import filtered_deck as filter
 from anki.consts import DYN_DUE
@@ -16,6 +17,8 @@ from os import path as Path
 class TextPicker(QDialog):
     def __init__(self):
         QDialog.__init__(self)
+
+        self.config = mw.addonManager.getConfig(__name__)
 
         self.setWindowTitle("Select Text to Study")
         self.layout = QVBoxLayout()
@@ -67,19 +70,20 @@ class TextPicker(QDialog):
 
         self.wordsToFind = self.get_word_list()
 
-        showInfo(f"Searching for {len(self.wordsToFind)} words...")
+        #showInfo(f"Searching for {len(self.wordsToFind)} words...")
 
         self.found = 0
         self.total = len(self.wordsToFind)
 
         self.progress = PROG.ProgressManager(mw)
-        self.progress.start(label=f"{self.found}/{self.total}", max=self.total)
+        self.progress.start()
 
-        query_op = QueryOp(parent=self, op=self.find_words(), success=self.success)
-        query_op.with_backend_progress(progress_update=self.progress_update)
+        query_op = QueryOp(parent=self, op=self.find_words, success=self.success)
+        #query_op.with_progress()
+        query_op.with_backend_progress(self.update_progress).run_in_background()
         self.progress.finish()
 
-        self._create_deck(self.idList)
+        self._create_deck()
         
         showInfo(f"Deck created: {self.selectedText}")
 
@@ -128,41 +132,48 @@ class TextPicker(QDialog):
         self.missingWords = []
         self.n = 0
 
-        self.progress_update(self.progress, Progress(0, self.total, f"{self.found}/{self.total}"))
+        notes = self.col.findNotes(f"\"note:\"")
 
+        try:
 
-        for word in self.wordsToFind:
-            ids = self.col.findNotes(f"\"Dictionary Entry:re:^{word}$\" -\"NT Frequency:\"")
-            for id in ids:
-                if id not in self.idList:
-                    self.n += 1
-                    self.idList.append(id)
-            if len(ids) == 0:
-                self.missingWords.append(word)
-            
-            self.found += 1
+            for word in self.wordsToFind:
+                ids = self.col.findNotes(f"\"Dictionary Entry:re:^{word}$\" -\"NT Frequency:\"")
+                for id in ids:
+                    if id not in self.idList:
+                        self.n += 1
+                        self.idList.append(id)
+                if len(ids) == 0:
+                    self.missingWords.append(word)
+                
+                self.found += 1
 
-            #self.progress.update(label=f"{self.found}/{self.total}", value=self.found, max=self.total)
+                #self.progress.update(label=f"{self.found}/{self.total}", value=self.found, max=self.total)
 
-            self.progress_update(self.progress, Progress(self.found, self.total, f"{self.found}/{self.total}"))
+                self.update_progress(self.progress, PROG.ProgressUpdate(label=f"{self.found}/{self.total}"),value=self.found, max=self.total)
+        except exception:
+            show_exception(parent=self._parent, exception=exception)
 
-        self.log_missing_words(self.missingWords)
+        if self.missingWords:
+            self.log_missing_words()
 
         self.numMissingWords = len(self.missingWords)
 
 
-    def log_missing_words(self, missingWords) -> None:
+    def log_missing_words(self) -> None:
         with open(Path.join(Path.dirname(Path.abspath(__file__)), "log.log"), "a") as log:
             log.write("="*50)
             log.write(f"\n\n{datetime.datetime.now()}\n\nAttempted to create {self.selectedText} deck. Missing words:\n\n")
-            for word in missingWords:
+            for word in self.missingWords:
                 log.write(word)
                 log.write("\n")
             log.write("\n")
 
 
-    def progress_update(self, progress, update):
-        progress.update(value=update.value, max=update.max, label=update.label)
+    def update_progress(self, progress, update):
+        progress = progress
+        update = update
+        #progress.update(label=update.label, value=update.value, max=update.max)
+
     
 
     def success(self):
@@ -174,13 +185,19 @@ class TextPicker(QDialog):
         showInfo(f"Words found: {self.n}{textToAdd}")
 
     
-    def _create_deck(self, idList):
+    def _create_deck(self):
     
         self.tag_name = "add-this-tag-to-cards-to-make-temp-deck"
 
-        self.col.tags.bulkAdd(idList, self.tag_name)
+        self.col.tags.bulkAdd(self.idList, self.tag_name)
 
-        deckName = f"New Greek Vocab - {self.selectedText}"
+        deckName = ""
+
+        parent_deck = self.config["parent_deck"]
+        if parent_deck:
+            deckName += parent_deck + "::"
+
+        deckName += f"{self.selectedText}"
         deckId = int(datetime.datetime.now().timestamp()) % 10**9
 
         searchQuery = f"tag:{self.tag_name} is:new card:1"
@@ -199,11 +216,6 @@ class TextPicker(QDialog):
         # Add code
         dummy = "Filler text"
 
-class Progress:
-    def __init__(self, value: int, max: int, label: str):
-        self.value = value
-        self.max = max
-        self.label = label
 
 textpicker = TextPicker()
 
