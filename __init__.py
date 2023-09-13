@@ -5,6 +5,7 @@ from aqt.qt import *
 from aqt.operations import QueryOp
 from aqt.errors import show_exception
 from anki import tags
+from anki import collection
 from aqt import filtered_deck as filter
 from anki.consts import DYN_DUE
 
@@ -13,6 +14,8 @@ from .bible_lists import *
 import datetime
 import json
 from os import path as Path
+
+Collection = collection.Collection
 
 class TextPicker(QDialog):
     def __init__(self):
@@ -75,13 +78,16 @@ class TextPicker(QDialog):
         self.found = 0
         self.total = len(self.wordsToFind)
 
-        self.progress = PROG.ProgressManager(mw)
-        self.progress.start()
+        if not self.config["strict"]:
+            self.progress = PROG.ProgressManager(mw)
+            self.progress.start()
 
-        query_op = QueryOp(parent=self, op=self.find_words, success=self.success)
-        #query_op.with_progress()
-        query_op.with_backend_progress(self.update_progress).run_in_background()
-        self.progress.finish()
+            query_op = QueryOp(parent=self, op=self.find_words, success=self.success)
+            #query_op.with_progress()
+            query_op.with_backend_progress(self.update_progress).run_in_background()
+
+        else:
+            self.find_words()
 
         self._create_deck()
         
@@ -89,7 +95,7 @@ class TextPicker(QDialog):
 
         self._delete_tag()
 
-        closeTextPicker()
+        self.hide()
 
         mw.reset()
 
@@ -132,12 +138,34 @@ class TextPicker(QDialog):
         self.missingWords = []
         self.n = 0
 
-        notes = self.col.findNotes(f"\"note:\"")
+        vocab_dict = {}
 
-        try:
+        start = datetime.datetime.now()
+
+        if self.config["strict"]:
+
+            notes = self.col.findNotes(f"\"note:{self.config['note_type']}*\"")
+            
+            for noteid in notes:
+                note = self.col.getNote(noteid)
+                greek_vocab = note[self.config["field_name"]]
+                vocab_dict[greek_vocab] = noteid
+            finish = datetime.datetime.now()
+
+            total_time = finish - start
 
             for word in self.wordsToFind:
-                ids = self.col.findNotes(f"\"Dictionary Entry:re:^{word}$\" -\"NT Frequency:\"")
+                try:
+                    id = vocab_dict[word]
+                    self.n += 1
+                    self.idList.append(id)
+                except:
+                    self.missingWords.append(word)
+
+        if not self.config["strict"]:
+
+            for word in self.wordsToFind:
+                ids = self.col.findNotes(f"re:^{word}")
                 for id in ids:
                     if id not in self.idList:
                         self.n += 1
@@ -147,11 +175,7 @@ class TextPicker(QDialog):
                 
                 self.found += 1
 
-                #self.progress.update(label=f"{self.found}/{self.total}", value=self.found, max=self.total)
-
                 self.update_progress(self.progress, PROG.ProgressUpdate(label=f"{self.found}/{self.total}"),value=self.found, max=self.total)
-        except exception:
-            show_exception(parent=self._parent, exception=exception)
 
         if self.missingWords:
             self.log_missing_words()
@@ -216,18 +240,55 @@ class TextPicker(QDialog):
         # Add code
         dummy = "Filler text"
 
+class Cache:
+    def __init__(self):
+        self.config = mw.addonManager.getConfig(__name__)
+        self.cache = self.config["cache"]
 
-textpicker = TextPicker()
+        self.run()
 
-def showTextPicker() -> None:
-    textpicker.show()
+    def background_cache(self):
+        self.createCache()
 
-def closeTextPicker() -> None:
-    # Beta code: Do not trust
-    textpicker.hide()
+    def run(self):
+        if self.cache:
+            op = QueryOp(parent=mw, op=self.background_cache(), success=add_menu_function)
+            op.run_in_background()
+            print("Greek vocab cached")
+        else:
+            add_menu_function()
+
+    def createCache(self):
+        self.col = mw.col
+
+        notes = self.col.findNotes(f"\"note:{self.config['note_type']}\"")
+
+        vocab_dict = {}
+
+        for noteid in notes:
+            note = self.col.getNote(noteid)
+            greek_vocab = note[self.config["field_name"]]
+            vocab_dict[greek_vocab] = noteid
+
+        with open(Path.join(Path.dirname(Path.abspath(__file__)), "cache.json"), "w") as cache_file:
+            json.dump(vocab_dict, cache_file, indent=4)
+
+        del notes
+        del vocab_dict
 
 
-action = QAction()
-action.setText("Greek Vocabulary")
-mw.form.menuTools.addAction(action)
-action.triggered.connect(showTextPicker)
+def add_menu_function():
+    textpicker = TextPicker()
+
+    def showTextPicker() -> None:
+        textpicker.show()
+
+    action = QAction()
+    action.setText("Greek Vocabulary")
+    mw.form.menuTools.addAction(action)
+    action.triggered.connect(showTextPicker)
+
+def _run():
+    new_cache = Cache()
+
+_run()

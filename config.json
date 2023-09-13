@@ -5,5 +5,6 @@
     "strict": true,
     "select_card_1": true,
     "select_card_2": true,
-    "select_cards_3+": false
+    "select_cards_3+": false,
+    "cache": true
 }
