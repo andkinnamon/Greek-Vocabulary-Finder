@@ -15,6 +15,8 @@ import datetime
 import json
 from os import path as Path
 
+current_version = "0.2.3"
+
 Collection = collection.Collection
 
 class TextPicker(QDialog):
