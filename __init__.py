@@ -15,13 +15,7 @@ import datetime
 import json
 from os import path as Path
 
-<<<<<<< Updated upstream
-Collection = collection.Collection
-
-current_version = "0.2.2"
-=======
 current_version = "0.3.0"
->>>>>>> Stashed changes
 
 class TextPicker(QDialog):
     def __init__(self):
