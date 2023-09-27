@@ -15,9 +15,13 @@ import datetime
 import json
 from os import path as Path
 
+<<<<<<< Updated upstream
 current_version = "0.2.3"
 
 Collection = collection.Collection
+=======
+current_version = "0.2.2"
+>>>>>>> Stashed changes
 
 class TextPicker(QDialog):
     def __init__(self):
@@ -279,6 +283,7 @@ class Cache:
         del vocab_dict
 
 
+<<<<<<< Updated upstream
 def add_menu_function():
     textpicker = TextPicker()
 
@@ -294,3 +299,9 @@ def _run():
     new_cache = Cache()
 
 _run()
+=======
+action = QAction()
+action.setText(f"Greek Vocabulary ({current_version})")
+mw.form.menuTools.addAction(action)
+action.triggered.connect(showTextPicker)
+>>>>>>> Stashed changes
