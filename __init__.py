@@ -1,39 +1,30 @@
 from aqt import mw
 from aqt.qt import *
-from anki import tags
+from aqt.utils import showInfo, tooltip
 
 from .UI import TextPicker
 from .cache import Cache
 
-import datetime
-
 current_version = "0.3.0"
 
-forbidden_characters = ['(', ')']
+class MenuManager:
+    def __init__(self):
+        self.setupMenu()
 
-def error_log(text) -> None:
-    with open("C:\\Users\\drkin\\Desktop\\Errors.txt", "a+") as file:
-        file.write(f"{datetime.datetime.now()} {text}\n")
+    def showTextPicker(self) -> None:
+        self.textpicker = TextPicker()
+        self.textpicker.show()
 
-def _run():
+    def setupMenu(self):
+        self.action = QAction()
+        self.action.setText(f"Greek Vocabulary ({current_version})")
+        mw.form.menuTools.addAction(self.action)
+        self.action.triggered.connect(self.showTextPicker)
 
-    def showTextPicker() -> None:
-        textpicker.show()
+menuManager = MenuManager()
 
-    action = QAction()
-    action.setText(f"Greek Vocabulary ({current_version})")
-    mw.form.menuTools.addAction(action)
-    action.triggered.connect(showTextPicker)
-    mw.reset()
-        
-    error_log("Menu created")
+config = mw.addonManager.getConfig(__name__)
 
-    textpicker = TextPicker()
-
-    error_log("Textpicker Created")
-
-    new_cache = Cache()
-
-    error_log("Greek Vocab Cached #1")
-
-_run()
+if config['cache'] == True:
+    pass
+    #new_cache = Cache()

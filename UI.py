@@ -1,22 +1,35 @@
 # Anki imports
 from aqt import mw
-from aqt.utils import showInfo
+from aqt.utils import showInfo, tooltip
 from aqt.qt import *
+from aqt.progress import *
 from aqt.operations import QueryOp
+from anki.consts import DYN_DUE
+from anki import tags
 
 # Python imports
 import json
-from os import path as Path
+from os import path
+import datetime
 
 # Local imports
 from .bible_lists import *
+#from .cache import Cache
 
-# TextPicker class for choosing and 
-class TextPicker(QDialog, cache):
+
+# TextPicker dialog for choosing text and creating deck
+class TextPicker(QDialog):
     def __init__(self):
         QDialog.__init__(self)
 
         self.config = mw.addonManager.getConfig(__name__)
+
+        self.n = 0
+
+        self.set_UI()
+    
+
+    def set_UI(self):
 
         self.setWindowTitle("Select Text to Study")
         self.layout = QVBoxLayout()
@@ -28,17 +41,35 @@ class TextPicker(QDialog, cache):
         self.book = QComboBox()
         self.book.addItem("")
         self.book.addItems(NT_book_list)
+        #self.book.view().setFixedWidth(200)
         self.layout.addWidget(self.book)
 
         self.label2 = QLabel("Select a chapter")
         self.layout.addWidget(self.label2)
 
         self.chapterList = QComboBox()
+        #self.chapterList.view().setFixedWidth(200)
         self.layout.addWidget(self.chapterList)
         self.book.currentTextChanged.connect(self.update_chapter_list)
 
+        self.checkBoxes = QHBoxLayout()
+
+        self.card1checkbox = QCheckBox("Grk → Eng")
+        self.card1checkbox.setChecked(self.config["select_card_1"])
+        self.checkBoxes.addWidget(self.card1checkbox)
+
+        self.card2checkbox = QCheckBox("Eng → Grk")
+        self.card2checkbox.setChecked(self.config["select_card_2"])
+        self.checkBoxes.addWidget(self.card2checkbox)
+
+        self.card3checkbox = QCheckBox("Other cards")
+        self.card3checkbox.setChecked(self.config["select_cards_3+"])
+        self.checkBoxes.addWidget(self.card3checkbox)
+        
+        self.layout.addLayout(self.checkBoxes)
+
         self.confirmButton = QPushButton("Find Cards")
-        self.confirmButton.clicked.connect(self._find_cards_and_make_deck)
+        self.confirmButton.clicked.connect(self.readiness_check)
         self.layout.addWidget(self.confirmButton)
 
         self.layout.setContentsMargins(10, 20, 10, 30)
@@ -56,6 +87,37 @@ class TextPicker(QDialog, cache):
                 self.chapterList.addItem(chapterNumber)
 
 
+    def readiness_check(self):
+        if not (self.card1checkbox.isChecked() or self.card2checkbox.isChecked() or self.card3checkbox.isChecked()):
+            showInfo("At least one card type must be selected")
+        if self.book.currentText() == "":
+            showInfo("No text selected")
+        else:
+            self.get_card_numbers()
+            self._find_cards_and_make_deck()
+
+
+    def get_card_numbers(self):
+        one = self.card1checkbox.isChecked()
+        two = self.card2checkbox.isChecked()
+        three = self.card3checkbox.isChecked()
+
+        if (one and not two and not three):
+            self.cards_to_find = "card:1"
+        if (not one and two and not three):
+            self.cards_to_find = "card:2"
+        if (one and two and not three):
+            self.cards_to_find = "(card:1 OR card:2)"
+        if (not one and not two and three):
+            self.cards_to_find = "-(card:1 OR card:2)"
+        if (one and not two and three):
+            self.cards_to_find = "-card:2"
+        if (not one and two and three):
+            self.cards_to_find = "-card:1"
+        if (one and two and three):
+            self.cards_to_find = ""
+
+
     def _find_cards_and_make_deck(self):
         self.selectedText = self.chapterList.currentText()
 
@@ -68,29 +130,14 @@ class TextPicker(QDialog, cache):
 
         self.wordsToFind = self.get_word_list()
 
-        #showInfo(f"Searching for {len(self.wordsToFind)} words...")
+        showInfo(f"Searching for {len(self.wordsToFind)} words...")
 
-        self.found = 0
         self.total = len(self.wordsToFind)
 
-        if not self.config["strict"]:
-
-            query_op = QueryOp(parent=self, op=self.find_words, success=self.success)
-            #query_op.with_progress()
-            query_op.with_backend_progress(self.update_progress).run_in_background()
-
-        else:
-            self.find_words()
-
-        self._create_deck()
-        
-        showInfo(f"Deck created: {self.selectedText}")
-
-        self._delete_tag()
-
-        self.hide()
-
-        mw.reset()
+        query_op = QueryOp(parent = self, op = lambda dummy: self.find_words(dummy), success = lambda dummy: self.success(dummy))
+        #query_op.with_progress()
+        query_op.with_backend_progress(self.update_progress).run_in_background()
+        #query_op.with_progress().run_in_background()
 
 
     def get_word_list(self) -> dict:
@@ -110,6 +157,9 @@ class TextPicker(QDialog, cache):
         else:
             wordsToFind = book_list[text]
 
+        
+        self.numWordsToFind = len(wordsToFind)
+
         return wordsToFind
 
 
@@ -120,66 +170,49 @@ class TextPicker(QDialog, cache):
         self.chapterList.clear()
         self.chapterList.addItem("Whole Book")
 
-        current_directory = Path.dirname(Path.abspath(__file__))
-        file_path = Path.join(current_directory, "NT", f"{str(book_number).zfill(2)} {current_book}.json")
+        current_directory = path.dirname(path.abspath(__file__))
+        file_path = path.join(current_directory, "NT", f"{str(book_number).zfill(2)} {current_book}.json")
 
         return file_path
     
 
-    def find_words(self):
+    def find_words(self, dummy):
         self.idList = []
         self.missingWords = []
-        self.n = 0
+        self.found_count = 0
 
-        vocab_dict = {}
-
-        start = datetime.datetime.now()
-
-        if self.config["strict"]:
-
-            notes = self.col.findNotes(f"\"note:{self.config['note_type']}*\"")
-            
-            for noteid in notes:
-                note = self.col.getNote(noteid)
-                greek_vocab = note[self.config["field_name"]]
-                vocab_dict[greek_vocab] = noteid
-            finish = datetime.datetime.now()
-
-            total_time = finish - start
-
-            for word in self.wordsToFind:
-                try:
-                    id = vocab_dict[word]
-                    self.n += 1
-                    self.idList.append(id)
-                except:
-                    self.missingWords.append(word)
-
-        if not self.config["strict"]:
-
-            for word in self.wordsToFind:
-                for char in forbidden_characters:
-                    word = word.replace(char, "")
-                ids = self.col.findNotes(f"re:^{word}")
-                for id in ids:
-                    if id not in self.idList:
-                        self.n += 1
-                        self.idList.append(id)
-                if len(ids) == 0:
-                    self.missingWords.append(word)
+        for word in self.wordsToFind:
+            query = f"\"{self.config['field_name']}:re:^{word}$\" -\"NT Frequency:\""
+            ids = self.col.findNotes(query)
+            for note_id in ids:
+                if note_id not in self.idList:
+                    self.idList.append(note_id)
+                card_ids = self.col.findCards(f"nid:{note_id} {self.cards_to_find}")
                 
-                self.found += 1
+                self.col.sched.reposition_new_cards(
+                    card_ids=card_ids,
+                    starting_from=self.wordsToFind[word]["order"],
+                    step_size=0,
+                    randomize=False,
+                    shift_existing=False
+                )
+            if len(ids) == 0:
+                self.missingWords.append(word)
+            else:
+                self.found_count += 1
+            self.n += 1
 
-                self.update_progress(self.progress, PROG.ProgressUpdate(label=f"{self.found}/{self.total}"),value=self.found, max=self.total)
-
-        if self.missingWords:
-            self.log_missing_words()
+            #update = ProgressUpdate(label = f"{self.n}/{self.numWordsToFind}", value = self.n, max = self.numWordsToFind)
+            #self.update_progress()
 
         self.numMissingWords = len(self.missingWords)
 
+        if self.numMissingWords:
+            self.log_missing_words()
+
 
     def log_missing_words(self) -> None:
-        with open(Path.join(Path.dirname(Path.abspath(__file__)), "log.log"), "a") as log:
+        with open(path.join(path.dirname(path.abspath(__file__)), "log.log"), "a") as log:
             log.write("="*50)
             log.write(f"\n\n{datetime.datetime.now()}\n\nAttempted to create {self.selectedText} deck. Missing words:\n\n")
             for word in self.missingWords:
@@ -189,18 +222,29 @@ class TextPicker(QDialog, cache):
 
 
     def update_progress(self, progress, update):
-        progress = progress
-        update = update
-        #progress.update(label=update.label, value=update.value, max=update.max)
+        update.label = f"{self.n}/{self.numWordsToFind}"
+        update.value = self.n
+        update.max = self.numWordsToFind
+        
 
 
-    def success(self):
+    def success(self, dummy):
 
         textToAdd = "<br><br>No missing words"
         if self.numMissingWords != 0:
-            textToAdd = f"<br><br>Missing words: {self.numMissingWords}. Check log for details."
+            textToAdd = f"<br><br>Missing words: {self.numMissingWords}. See <a href=\"file:///{path.dirname(path.abspath(__file__))}\\log.log\">log</a>."
 
-        showInfo(f"Words found: {self.n}{textToAdd}")
+        #showInfo(f"Words found: {self.found_count}{textToAdd}")
+
+        self._create_deck()
+        
+        showInfo(f"Deck created: {self.selectedText}. Words found: {self.found_count}{textToAdd}")
+
+        self.reset()
+
+        self.hide()
+
+        mw.reset()
 
     
     def _create_deck(self):
@@ -216,18 +260,25 @@ class TextPicker(QDialog, cache):
             deckName += parent_deck + "::"
 
         deckName += f"{self.selectedText}"
-        deckId = int(datetime.datetime.now().timestamp()) % 10**9
 
-        searchQuery = f"tag:{self.tag_name} is:new card:1"
+        searchQuery = f"tag:{self.tag_name} is:new {self.cards_to_find}"
 
         did = self.col.decks.new_filtered(deckName)
         deck = self.col.decks.get(did)
-        deck["terms"] = [[searchQuery, 1000, DYN_DUE]]
+        deck["terms"] = [[searchQuery, self.config["deck_size_limit"], DYN_DUE]]
         self.col.decks.save(deck)
         self.col.sched.rebuildDyn(did)
-        mw.progress.finish()
+        #mw.progress.finish()
 
 
     def _delete_tag(self):
         tags_manager = tags.TagManager(self.col)
         tags_manager.remove(self.tag_name)
+
+    def reset(self):
+        self._delete_tag()
+
+        self.book = None
+        self.book_list = None
+        self.missingWords = None
+        self.cards_to_find = None
