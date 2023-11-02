@@ -14,8 +14,9 @@ import datetime
 
 # Local imports
 from .bible_lists import *
-#from .cache import Cache
 
+
+current_directory = path.dirname(path.abspath(__file__))
 
 # TextPicker dialog for choosing text and creating deck
 class TextPicker(QDialog):
@@ -35,20 +36,26 @@ class TextPicker(QDialog):
         self.layout = QVBoxLayout()
         self.cardLayout = QHBoxLayout()
 
-        self.label1 = QLabel("Select a New Testament book to study its vocabulary")
-        self.layout.addWidget(self.label1)
+        self.collection_label = QLabel("Select a collection of texts")
+        self.layout.addWidget(self.collection_label)
+
+        self.collection = QComboBox()
+        self.collection.addItems(["New Testament", "Septuagint"])
+        self.layout.addWidget(self.collection)
+
+        self.book_list_label = QLabel(f"Select a {self.collection.currentText()} book")
+        self.layout.addWidget(self.book_list_label)
 
         self.book = QComboBox()
         self.book.addItem("")
         self.book.addItems(NT_book_list)
-        #self.book.view().setFixedWidth(200)
         self.layout.addWidget(self.book)
+        self.collection.currentTextChanged.connect(self.update_book_list)
 
-        self.label2 = QLabel("Select a chapter")
-        self.layout.addWidget(self.label2)
+        self.chapter_label = QLabel("Select a chapter")
+        self.layout.addWidget(self.chapter_label)
 
         self.chapterList = QComboBox()
-        #self.chapterList.view().setFixedWidth(200)
         self.layout.addWidget(self.chapterList)
         self.book.currentTextChanged.connect(self.update_chapter_list)
 
@@ -76,22 +83,43 @@ class TextPicker(QDialog):
 
         self.setLayout(self.layout)
 
+    def update_book_list(self):
+        self.book.clear()
+
+        self.book_list_label.setText(f"Select a {self.collection.currentText()} book")
+
+        if self.collection.currentText() == "New Testament":
+            self.book.addItem("")
+            self.book.addItems(NT_book_list)
+        
+        if self.collection.currentText() == "Septuagint":
+            self.book.addItem("")
+            self.book.addItems(LXX_book_list)
+
 
     def update_chapter_list(self):
-        file_path = self.getFilePath()
-        with open(file_path, "r") as book_file:
+        self.chapterList.clear()
         
-            chapter_list = json.load(book_file)
+        # Collection changed -> Do nothing
+        if self.book.currentText() == "":
+            pass
         
-            for chapterNumber in chapter_list:
-                self.chapterList.addItem(chapterNumber)
+        # Book changed -> Rebuild chapter list
+        else:
+            file_path = self.getFilePath()
+            with open(file_path, "r") as book_file:
+            
+                chapter_list = json.load(book_file)
+            
+                for chapterNumber in chapter_list:
+                    self.chapterList.addItem(chapterNumber)
 
 
     def readiness_check(self):
-        if not (self.card1checkbox.isChecked() or self.card2checkbox.isChecked() or self.card3checkbox.isChecked()):
-            showInfo("At least one card type must be selected")
         if self.book.currentText() == "":
             showInfo("No text selected")
+        elif not (self.card1checkbox.isChecked() or self.card2checkbox.isChecked() or self.card3checkbox.isChecked()):
+            showInfo("At least one card type must be selected")
         else:
             self.get_card_numbers()
             self._find_cards_and_make_deck()
@@ -165,13 +193,15 @@ class TextPicker(QDialog):
 
     def getFilePath(self):
         current_book = self.book.currentText()
-        book_number = NT_book_list.index(current_book) + 1
+
+        if self.collection.currentText() == "New Testament":
+            book_number = NT_book_list.index(current_book) + 1
+        if self.collection.currentText() == "Septuagint":
+            book_number = LXX_book_list.index(current_book) + 1
     
-        self.chapterList.clear()
         self.chapterList.addItem("Whole Book")
 
-        current_directory = path.dirname(path.abspath(__file__))
-        file_path = path.join(current_directory, "NT", f"{str(book_number).zfill(2)} {current_book}.json")
+        file_path = path.join(current_directory, f"{self.collection.currentText()} Files", f"{str(book_number).zfill(2)} {current_book}.json")
 
         return file_path
     
@@ -182,7 +212,7 @@ class TextPicker(QDialog):
         self.found_count = 0
 
         for word in self.wordsToFind:
-            query = f"\"{self.config['field_name']}:re:^{word}$\" -\"NT Frequency:\""
+            query = f"\"{self.config['field_name']}:re:^{word}$\""
             ids = self.col.findNotes(query)
             for note_id in ids:
                 if note_id not in self.idList:
@@ -232,9 +262,7 @@ class TextPicker(QDialog):
 
         textToAdd = "<br><br>No missing words"
         if self.numMissingWords != 0:
-            textToAdd = f"<br><br>Missing words: {self.numMissingWords}. See <a href=\"file:///{path.dirname(path.abspath(__file__))}\\log.log\">log</a>."
-
-        #showInfo(f"Words found: {self.found_count}{textToAdd}")
+            textToAdd = f"<br><br>Missing words: {self.numMissingWords}. See <a href=\"file:///{current_directory}\\log.log\">log</a>."
 
         self._create_deck()
         
