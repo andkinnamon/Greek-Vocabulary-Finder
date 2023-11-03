@@ -23,11 +23,9 @@ Development Roadmap:
 Expansion Roadmap:
 ------------------
 
-1.  Septuagint
+1.  Perseus
 
-2.  Perseus
-
-3.  Greek Church Fathers
+2.  Greek Church Fathers
 
     1.  Apostolic Fathers
 

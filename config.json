@@ -6,7 +6,5 @@
     "select_card_1": true,
     "select_card_2": true,
     "select_cards_3+": false,
-    "cache": false,
-    "NT_ignore_frequency": null,
     "deck_size_limit": 9999
 }
