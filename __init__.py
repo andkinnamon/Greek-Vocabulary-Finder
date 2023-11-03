@@ -4,8 +4,6 @@ from aqt.utils import showInfo, tooltip
 
 from .UI import TextPicker
 
-current_version = "0.4.2"
-
 class MenuManager:
     def __init__(self):
         self.setupMenu()

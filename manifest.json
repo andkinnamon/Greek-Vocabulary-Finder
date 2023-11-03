@@ -1,0 +1,10 @@
+{
+    "name": "Greek Vocabulary Finder",
+    "package": "Anki-Greek-Vocabulary-Finder",
+    "ankiweb_id": "",
+    "Author": "Andrew Kinnamon",
+    "version": "0.4.3",
+    "homepage": "https://github.com/andkinnamon/Anki-Greek-Vocabulary-Finder.git",
+    "conflicts": [],
+    "mod": ""
+}
