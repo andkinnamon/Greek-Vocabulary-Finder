@@ -1,4 +1,4 @@
-**Parent Deck**: Create filtered vocab decks as child decks of this deck. Suggested use: Create a parent deck for all temporary deck build with this add-on to set daily new card limits.
+**Parent Deck**: Create filtered vocab decks as child decks of this deck. Suggested use: Create a parent deck for all temporary deck build with this add-on to set daily new card limits. "&book&" will be replaced by the name of the selected book.
 
 **Note Type**: Name of the note type to search for vocab cards
 

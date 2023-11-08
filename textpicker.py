@@ -371,6 +371,7 @@ class TextPicker(QDialog):
         # If parent deck spcified in the add-on confguration, add it to the name of the temporary deck.
         parent_deck = self.config["parent_deck"]
         if parent_deck:
+            parent_deck.replace("&book&", self.selectedText)
             deckName += parent_deck + "::"
 
         deckName += f"{self.selectedText}"
