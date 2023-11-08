@@ -26,7 +26,7 @@ class MenuManager:
 
     def setupMenu(self):
         self.action = QAction()
-        self.action.setText(f"Greek Vocab Finder - beta")
+        self.action.setText(f"Greek Vocab Finder")
         mw.form.menuTools.addAction(self.action)
         self.action.triggered.connect(self.showTextPicker)
 
