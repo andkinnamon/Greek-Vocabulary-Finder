@@ -8,9 +8,7 @@ Anki Addon to find New Testament Greek Vocabulary
 Development Roadmap:
 --------------------
 
-1. Convert chapter dropdown to checkable table
-
-2. Corrections
+1. Corrections
 
     - Automatic corrections
 
@@ -26,17 +24,13 @@ Development Roadmap:
 
         - Table
 
-3.  Error handling
+        - Ignore list
+
+2. Error handling
 
     -   Notes found, “new” search empty =\> “All words have been learned”
 
     -   No notes found =\> “Check default configuration”
-
-4.  General use with any vocab deck
-
-    -   Examples?
-
- 
 
 Expansion Roadmap:
 ------------------

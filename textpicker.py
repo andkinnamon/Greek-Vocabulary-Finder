@@ -53,13 +53,22 @@ class TextPicker(QDialog):
         self.layout.addWidget(self.book)
         self.collection.currentTextChanged.connect(self.update_book_list)
 
+        
         # Choose a chapter from a dropdown menu
         self.chapter_label = QLabel("Select a chapter")
         self.layout.addWidget(self.chapter_label)
-
+        """
         self.chapterList = QComboBox()
         self.layout.addWidget(self.chapterList)
         self.book.currentTextChanged.connect(self.update_chapter_list)
+        """
+
+        self.chapterList = QTableWidget(0, 1, self)
+        self.chapterList.verticalHeader().hide()
+        self.chapterList.horizontalHeader().hide()
+        self.layout.addWidget(self.chapterList)
+        self.book.currentTextChanged.connect(self.update_chapter_table)
+
 
         # Checkboxes for choosing card layouts
         self.checkBoxes = QHBoxLayout()
@@ -123,6 +132,43 @@ class TextPicker(QDialog):
                     self.chapterList.addItem(chapterNumber)
 
 
+    # Repopulate the chapter list
+    # Called when the book is changed
+    def update_chapter_table(self):
+        self.chapterList.clearContents()
+        
+        # Collection changed -> Do nothing
+        if self.book.currentText() == "":
+            pass
+        
+        # Book changed -> Rebuild chapter list
+        else:
+            file_path = self.getFilePath()
+            with open(file_path, "r") as book_file:
+            
+                chapter_dict = json.load(book_file)
+
+                chapter_list = []
+                for chapter in chapter_dict:
+                    chapter_list.append(chapter)
+
+                added_rows = 0
+
+                self.chapterList.setRowCount(len(chapter_list))
+            
+                for chapterNumber in chapter_list:
+
+                    item = QTableWidgetItem(chapterNumber)
+
+                    item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+                    #item.setCheckState(Qt.CheckState.Unchecked)
+
+                    self.chapterList.setItem(1,added_rows-1, item)
+                    added_rows += 1
+            
+            self.chapterList.resizeColumnsToContents()
+
+
     # Check to make sure all components are prepared. Do not continue if failed.
     # Called by confirmation button in set_UI
     def readiness_check(self):
@@ -160,7 +206,7 @@ class TextPicker(QDialog):
 
     # Called in readiness_check
     def find_cards_and_make_deck(self):
-        self.selectedText = self.chapterList.currentText()
+        self.selectedText = self.book.currentText()
 
         # Extract data from json file. Used in get_word_list.
         file_path = self.getFilePath()
@@ -183,22 +229,19 @@ class TextPicker(QDialog):
 
     # Called in find_cards_and_make_deck
     def get_word_list(self) -> dict:
-        text = self.selectedText
+        chapters = [chap.text() for chap in self.chapterList.selectedItems()]
         book_list = self.book_list
-        if text == "Whole Book":
-            self.selectedText = self.book.currentText()
-            wordsToFind = {}
-            n = 0
-            for chapter in book_list:
-                for word in book_list[chapter]:
-                    if word not in wordsToFind:
-                        n += 1
-                        wordsToFind[word] = {"order": n, "freq": 1}
-                    else:
-                        wordsToFind[word]["freq"] += 1
-        else:
-            wordsToFind = book_list[text]
-
+        self.selectedText = self.book.currentText()
+        wordsToFind = {}
+        n = 0
+        for chapter in chapters:
+            for word in book_list[chapter]:
+                if word not in wordsToFind:
+                    n += 1
+                    wordsToFind[word] = {"order": n, "freq": 1}
+                else:
+                    wordsToFind[word]["freq"] += 1
+        
         self.numWordsToFind = len(wordsToFind)
 
         return wordsToFind
@@ -214,7 +257,7 @@ class TextPicker(QDialog):
         if self.collection.currentText() == "Septuagint":
             book_number = LXX_book_list.index(current_book) + 1
     
-        self.chapterList.addItem("Whole Book")
+        #self.chapterList.addItem("Whole Book")
 
         file_path = path.join(current_directory, f"{self.collection.currentText()} Files", f"{str(book_number).zfill(2)} {current_book}.json")
 
@@ -319,7 +362,7 @@ class TextPicker(QDialog):
     # Called in success
     def create_deck(self):
     
-        self.tag_name = f"make-temp-deck-for-{self.selectedText.replace(' ', '-')}"
+        self.tag_name = f"make-temp-deck-for-{self.selectedText.replace(' ', '-')}-Greek"
 
         self.col.tags.bulkAdd(self.idList, self.tag_name)
 
