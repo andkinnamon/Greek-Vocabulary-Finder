@@ -1,4 +1,4 @@
-Anki-Greek-Vocabulary-Finder
+Anki Greek Vocabulary Finder
 ============================
 
 Anki Addon to find New Testament Greek Vocabulary
@@ -8,13 +8,31 @@ Anki Addon to find New Testament Greek Vocabulary
 Development Roadmap:
 --------------------
 
-1.  Error handling
+1. Convert chapter dropdown to checkable table
+
+2. Corrections
+
+    - Automatic corrections
+
+        - Pronouns, articles
+
+        - Names
+
+        - Deponent/Active
+
+    - User-added corrections
+
+        - Option window
+
+        - Table
+
+3.  Error handling
 
     -   Notes found, “new” search empty =\> “All words have been learned”
 
     -   No notes found =\> “Check default configuration”
 
-2.  General use with any vocab deck
+4.  General use with any vocab deck
 
     -   Examples?
 

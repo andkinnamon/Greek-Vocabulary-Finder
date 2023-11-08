@@ -35,7 +35,7 @@ class TextPicker(QDialog):
         self.layout = QVBoxLayout()
         self.cardLayout = QHBoxLayout() # Sub-layout for card check boxes
 
-        # Collection option
+        # Choose a collection (New Testament default)
         self.collection_label = QLabel("Select a collection of texts")
         self.layout.addWidget(self.collection_label)
 
@@ -43,7 +43,7 @@ class TextPicker(QDialog):
         self.collection.addItems(["New Testament", "Septuagint"])
         self.layout.addWidget(self.collection)
 
-        # Choose a book (New Testament default)
+        # Choose a book
         self.book_list_label = QLabel(f"Select a {self.collection.currentText()} book")
         self.layout.addWidget(self.book_list_label)
 
@@ -53,7 +53,7 @@ class TextPicker(QDialog):
         self.layout.addWidget(self.book)
         self.collection.currentTextChanged.connect(self.update_book_list)
 
-        # Choose a chapter
+        # Choose a chapter from a dropdown menu
         self.chapter_label = QLabel("Select a chapter")
         self.layout.addWidget(self.chapter_label)
 
@@ -199,14 +199,13 @@ class TextPicker(QDialog):
         else:
             wordsToFind = book_list[text]
 
-        
         self.numWordsToFind = len(wordsToFind)
 
         return wordsToFind
 
     # Get the storage file path for the selected text
     # Called in update_chapter_list to populate the chapter list
-    # Called in 
+    # Called in get_word_list
     def getFilePath(self):
         current_book = self.book.currentText()
 
@@ -228,30 +227,32 @@ class TextPicker(QDialog):
         self.idList = []
         self.missingWords = []
         self.found_count = 0
+        self.count = 0
 
         for word in self.wordsToFind:
             self.show_search_warning = False
-            if self.config['strict']:    # Narrow search using strict settings
+            self.search_query_num = 0
+            if self.config['strict'] == True:    # Narrow search using strict settings
                 field = self.config['field_name']
                 note_type = self.config['note_type']
                 if field and not note_type:
-                    query = f"\"{field}:re:^{word}$\""
+                    query = f"\"{field}:re:^{word}([ ,]|\\W)\""
                 elif not field and note_type:
-                    query = f"\"note:{note_type}\" \"re:^{word}$\""
+                    query = f"\"note:{note_type}\" \"re:^{word}([ ,]|\\W)\""
                 elif field and note_type:
-                    query = f"\"note:{note_type}\" \"{field}:re:^{word}$\""
+                    query = f"\"note:{note_type}\" \"{field}:re:^{word}([ ,]|\\W)\""
                 else:
                     self.show_search_warning = True
-                    query = f"\"re:^{word}$\""
+                    query = f"\"re:^{word}([ ,]|\\W)\""
             else:                        # Broad search using only word
-                query = f"\"re:^{word}\""
+                query = f"\"re:^{word}([ ,]|\\W)\""
 
             ids = self.col.findNotes(query)
             
             for note_id in ids:
                 if note_id not in self.idList:
                     self.idList.append(note_id)
-                card_ids = self.col.findCards(f"nid:{note_id} {self.cards_to_find}")
+                card_ids = self.col.findCards(f"nid:{note_id} {self.cards_to_find} -deck:filtered")
                 
                 # Reposition the cards to appear in order within text
                 self.col.sched.reposition_new_cards(
@@ -266,6 +267,7 @@ class TextPicker(QDialog):
                 self.missingWords.append(word)
             else:
                 self.found_count += 1
+            self.count += 1
 
         self.numMissingWords = len(self.missingWords)
 
@@ -288,8 +290,8 @@ class TextPicker(QDialog):
     # Update the progress bar
     # Called by query_op in find_cards_and_make_deck
     def update_progress(self, progress, update):
-        update.label = f"{self.n}/{self.numWordsToFind}"
-        update.value = self.n
+        update.label = f"{self.count}/{self.numWordsToFind}"
+        update.value = self.count
         update.max = self.numWordsToFind
         
 

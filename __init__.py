@@ -2,7 +2,7 @@ from aqt import mw
 from aqt.qt import *
 from aqt.utils import showInfo, tooltip
 
-from .UI import TextPicker
+from .textpicker import TextPicker
 
 class MenuManager:
     def __init__(self):
@@ -14,10 +14,8 @@ class MenuManager:
 
     def setupMenu(self):
         self.action = QAction()
-        self.action.setText(f"Greek Vocabulary")
+        self.action.setText(f"Greek Vocab Finder - beta")
         mw.form.menuTools.addAction(self.action)
         self.action.triggered.connect(self.showTextPicker)
 
 menuManager = MenuManager()
-
-config = mw.addonManager.getConfig(__name__)
