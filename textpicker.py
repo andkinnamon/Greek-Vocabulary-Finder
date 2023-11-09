@@ -34,6 +34,7 @@ class TextPicker(QDialog):
         self.setWindowTitle("Select Text to Study")
         self.layout = QVBoxLayout()
         self.cardLayout = QHBoxLayout() # Sub-layout for card check boxes
+        self.buttonlayout = QHBoxLayout()
 
         # Choose a collection (New Testament default)
         self.collection_label = QLabel("Select a collection of texts")
@@ -53,19 +54,28 @@ class TextPicker(QDialog):
         self.layout.addWidget(self.book)
         self.collection.currentTextChanged.connect(self.update_book_list)
 
+
+        # Button to select all
+        select_all_button = QPushButton("Select All")
+        select_all_button.clicked.connect(self.select_all)
+        self.buttonlayout.addWidget(select_all_button)
+
+        # Button to clear selection
+        select_none_button = QPushButton("Clear Selection")
+        select_none_button.clicked.connect(self.select_none)
+        self.buttonlayout.addWidget(select_none_button)
+
+        self.layout.addLayout(self.buttonlayout)
         
-        # Choose a chapter from a dropdown menu
+        # Choose a chapter from a table menu
         self.chapter_label = QLabel("Select a chapter")
         self.layout.addWidget(self.chapter_label)
-        """
-        self.chapterList = QComboBox()
-        self.layout.addWidget(self.chapterList)
-        self.book.currentTextChanged.connect(self.update_chapter_list)
-        """
+
 
         self.chapterList = QTableWidget(0, 1, self)
         self.chapterList.verticalHeader().hide()
         self.chapterList.horizontalHeader().hide()
+        self.chapterList.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
         self.layout.addWidget(self.chapterList)
         self.book.currentTextChanged.connect(self.update_chapter_table)
 
@@ -96,6 +106,13 @@ class TextPicker(QDialog):
 
         self.setLayout(self.layout)
 
+    def select_all(self):
+        self.chapterList.selectAll()
+
+    def select_none(self):
+        self.chapterList.clearSelection()
+
+
     # Repopulate the book list
     # Called when the collection is changed
     def update_book_list(self):
@@ -110,26 +127,6 @@ class TextPicker(QDialog):
         if self.collection.currentText() == "Septuagint":
             self.book.addItem("")
             self.book.addItems(LXX_book_list)
-
-
-    # Repopulate the chapter list
-    # Called when the book is changed
-    def update_chapter_list(self):
-        self.chapterList.clear()
-        
-        # Collection changed -> Do nothing
-        if self.book.currentText() == "":
-            pass
-        
-        # Book changed -> Rebuild chapter list
-        else:
-            file_path = self.getFilePath()
-            with open(file_path, "r") as book_file:
-            
-                chapter_list = json.load(book_file)
-            
-                for chapterNumber in chapter_list:
-                    self.chapterList.addItem(chapterNumber)
 
 
     # Repopulate the chapter list
@@ -172,8 +169,10 @@ class TextPicker(QDialog):
     # Check to make sure all components are prepared. Do not continue if failed.
     # Called by confirmation button in set_UI
     def readiness_check(self):
-        if self.book.currentText() == "":   # Check for a book option. No possibility of no chapter selected.
+        if self.book.currentText() == "":   # Check for a book option.
             showInfo("No text selected")
+        elif len(self.chapterList.selectedItems()) == 0:
+            shoInfo("No chapters selected")
         elif not (self.card1checkbox.isChecked() or self.card2checkbox.isChecked() or self.card3checkbox.isChecked()):   # Make sure at least one card type is checked
             showInfo("At least one card type must be selected")
         else:
@@ -348,7 +347,7 @@ class TextPicker(QDialog):
         if self.numMissingWords != 0:
             textToAdd = f"<br><br>Missing words: {self.numMissingWords}. See <a href=\"file:///{current_directory}\\log.log\">log</a>."
         if not self.config['strict']:
-            textToAdd += "<br><br>If you receive extraneous words, try changing the settings to search for a specific note type and/or field name and set strict to true<br><br>Tools→Add-ons→Config"
+            textToAdd += "<br><br>If you receive extraneous words,<br>try changing the settings to search<br>for a specific note type and/or<br>field name and set strict to true<br><br>Tools→Add-ons→Config"
 
         self.create_deck()
         
@@ -371,7 +370,7 @@ class TextPicker(QDialog):
         # If parent deck spcified in the add-on confguration, add it to the name of the temporary deck.
         parent_deck = self.config["parent_deck"]
         if parent_deck:
-            parent_deck.replace("&book&", self.selectedText)
+            parent_deck = parent_deck.replace("&book&", self.selectedText)
             deckName += parent_deck + "::"
 
         deckName += f"{self.selectedText}"
