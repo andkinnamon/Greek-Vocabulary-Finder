@@ -5,7 +5,7 @@ Anki Add-on: Greek Bible Vocabulary Finder
 
 Updated November 7, 2023 by Andrew Kinnamon
 
-Search your Anki collection for unlearned Greek words from the New Testament or Septuagint
+Search your Anki collection for unlearned Greek words from the New Testament or Septuagint.
 
 Copyright: (c) Andrew Kinnamon 2023 (https://github.com/andkinnamon)
 License: GNU GPL, version 3 or later; http://www.gnu.org/copyleft/gpl.html
@@ -26,7 +26,7 @@ class MenuManager:
 
     def setupMenu(self):
         self.action = QAction()
-        self.action.setText(f"Greek Vocab Finder")
+        self.action.setText(f"Greek Vocab Finder - beta")
         mw.form.menuTools.addAction(self.action)
         self.action.triggered.connect(self.showTextPicker)
 

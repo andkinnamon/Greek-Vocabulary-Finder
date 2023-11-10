@@ -14,9 +14,12 @@ import datetime
 
 # Local imports
 from .bible_lists import *
+from .settings import Configuration
 
 
 current_directory = path.dirname(path.abspath(__file__))
+
+#settings = Configuration()
 
 # TextPicker window for choosing text and creating deck
 class TextPicker(QDialog):
@@ -25,35 +28,48 @@ class TextPicker(QDialog):
 
         self.config = mw.addonManager.getConfig(__name__)   # Load add-on configuation settings
 
-        self.set_UI()
+        self.set_ui()
     
 
     # Create Textpicker visual layout
-    def set_UI(self):
+    def set_ui(self):
 
         self.setWindowTitle("Select Text to Study")
-        self.layout = QVBoxLayout()
+        self.layout = QHBoxLayout()
+        self.layout_left = QVBoxLayout()
+        self.layout_right = QVBoxLayout()
         self.cardLayout = QHBoxLayout() # Sub-layout for card check boxes
         self.buttonlayout = QHBoxLayout()
 
         # Choose a collection (New Testament default)
         self.collection_label = QLabel("Select a collection of texts")
-        self.layout.addWidget(self.collection_label)
+        self.layout_left.addWidget(self.collection_label)
 
         self.collection = QComboBox()
         self.collection.addItems(["New Testament", "Septuagint"])
-        self.layout.addWidget(self.collection)
+        self.layout_left.addWidget(self.collection)
 
         # Choose a book
-        self.book_list_label = QLabel(f"Select a {self.collection.currentText()} book")
-        self.layout.addWidget(self.book_list_label)
+        self.book_list_label = QLabel(f"<br>Select a {self.collection.currentText()} book")
+        self.layout_left.addWidget(self.book_list_label)
 
         self.book = QComboBox()
         self.book.addItem("")
         self.book.addItems(NT_book_list)
-        self.layout.addWidget(self.book)
+        self.layout_left.addWidget(self.book)
         self.collection.currentTextChanged.connect(self.update_book_list)
 
+
+        # Choose a chapter from a table menu
+        self.chapter_label = QLabel("<br>Select a chapter")
+        self.layout_right.addWidget(self.chapter_label)
+
+        self.chapterList = QTableWidget(0, 1, self)
+        self.chapterList.verticalHeader().hide()
+        self.chapterList.horizontalHeader().hide()
+        self.chapterList.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        self.layout_right.addWidget(self.chapterList)
+        self.book.currentTextChanged.connect(self.update_chapter_table)
 
         # Button to select all
         select_all_button = QPushButton("Select All")
@@ -65,20 +81,7 @@ class TextPicker(QDialog):
         select_none_button.clicked.connect(self.select_none)
         self.buttonlayout.addWidget(select_none_button)
 
-        self.layout.addLayout(self.buttonlayout)
-        
-        # Choose a chapter from a table menu
-        self.chapter_label = QLabel("Select a chapter")
-        self.layout.addWidget(self.chapter_label)
-
-
-        self.chapterList = QTableWidget(0, 1, self)
-        self.chapterList.verticalHeader().hide()
-        self.chapterList.horizontalHeader().hide()
-        self.chapterList.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
-        self.layout.addWidget(self.chapterList)
-        self.book.currentTextChanged.connect(self.update_chapter_table)
-
+        self.layout_right.addLayout(self.buttonlayout)
 
         # Checkboxes for choosing card layouts
         self.checkBoxes = QHBoxLayout()
@@ -95,20 +98,38 @@ class TextPicker(QDialog):
         self.card3checkbox.setChecked(self.config["select_cards_3+"])
         self.checkBoxes.addWidget(self.card3checkbox)
         
-        self.layout.addLayout(self.checkBoxes)
+        self.layout_left.addLayout(self.checkBoxes)
+
+        self.layout_left.addStretch()
 
         # Confirmation button
-        self.confirmButton = QPushButton("Find Cards")
+        self.bottom_layout = QHBoxLayout()
+        self.confirm_layout = QVBoxLayout()
+        self.confirmButton = QPushButton("Find Cards...")
         self.confirmButton.clicked.connect(self.readiness_check)
-        self.layout.addWidget(self.confirmButton)
+        self.confirm_layout.addWidget(self.confirmButton)
 
-        self.layout.setContentsMargins(10, 20, 10, 30)
+        # Settings Button
+        self.settingsButton = QPushButton("Settings")
+        self.settingsButton.clicked.connect(self.show_settings)
+        self.confirm_layout.addWidget(self.settingsButton)
+        self.bottom_layout.addLayout(self.confirm_layout)
+        self.bottom_layout.addStretch()
+        self.layout_left.addLayout(self.bottom_layout)
+
+
+        self.layout.addLayout(self.layout_left)
+        self.layout.addLayout(self.layout_right)
 
         self.setLayout(self.layout)
+    
 
+    # Select all rows in the chapter table
     def select_all(self):
         self.chapterList.selectAll()
 
+
+    # Unselect all rows in the chapter table
     def select_none(self):
         self.chapterList.clearSelection()
 
@@ -163,7 +184,7 @@ class TextPicker(QDialog):
                     self.chapterList.setItem(1,added_rows-1, item)
                     added_rows += 1
             
-            self.chapterList.resizeColumnsToContents()
+            #self.chapterList.resizeColumnsToContents()
 
 
     # Check to make sure all components are prepared. Do not continue if failed.
@@ -172,12 +193,18 @@ class TextPicker(QDialog):
         if self.book.currentText() == "":   # Check for a book option.
             showInfo("No text selected")
         elif len(self.chapterList.selectedItems()) == 0:
-            shoInfo("No chapters selected")
+            showInfo("No chapters selected")
         elif not (self.card1checkbox.isChecked() or self.card2checkbox.isChecked() or self.card3checkbox.isChecked()):   # Make sure at least one card type is checked
             showInfo("At least one card type must be selected")
         else:
             self.cards_to_find = self.get_card_numbers()   # Create search string for selected cards
             self.find_cards_and_make_deck()   # Continue the operation
+
+
+    def show_settings(self) -> None:
+        self.settings = Configuration()
+        self.settings.show()
+
 
 
     # Build a string to be added to the search query when building the deck
