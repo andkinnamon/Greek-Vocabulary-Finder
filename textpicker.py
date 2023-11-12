@@ -14,62 +14,66 @@ import datetime
 
 # Local imports
 from .bible_lists import *
-from .settings import Configuration
+from .Settings.settings import Configuration
+from .constants import *
 
-
-current_directory = path.dirname(path.abspath(__file__))
-
-#settings = Configuration()
 
 # TextPicker window for choosing text and creating deck
 class TextPicker(QDialog):
     def __init__(self):
         QDialog.__init__(self)
 
-        self.config = mw.addonManager.getConfig(__name__)   # Load add-on configuation settings
-
         self.set_ui()
     
 
     # Create Textpicker visual layout
     def set_ui(self):
+        self.setFixedSize(550, 450)
+
 
         self.setWindowTitle("Select Text to Study")
         self.layout = QHBoxLayout()
-        self.layout_left = QVBoxLayout()
-        self.layout_right = QVBoxLayout()
-        self.cardLayout = QHBoxLayout() # Sub-layout for card check boxes
+        self.text_layout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        self.table_layout = QVBoxLayout()
         self.buttonlayout = QHBoxLayout()
 
         # Choose a collection (New Testament default)
-        self.collection_label = QLabel("Select a collection of texts")
-        self.layout_left.addWidget(self.collection_label)
+        self.collection_label = QLabel("<b>Select a collection of texts</b>")
+        self.text_layout.addWidget(self.collection_label)
 
         self.collection = QComboBox()
         self.collection.addItems(["New Testament", "Septuagint"])
-        self.layout_left.addWidget(self.collection)
+        self.collection.setCurrentText(config["collection"])
+        self.collection.currentTextChanged.connect(self.update_book_table)
+        self.text_layout.addWidget(self.collection)
 
         # Choose a book
-        self.book_list_label = QLabel(f"<br>Select a {self.collection.currentText()} book")
-        self.layout_left.addWidget(self.book_list_label)
+        self.book_list_label = QLabel(f"<b>Select a {self.collection.currentText()} book</b>")
+        self.text_layout.addWidget(self.book_list_label)
 
-        self.book = QComboBox()
-        self.book.addItem("")
-        self.book.addItems(NT_book_list)
-        self.layout_left.addWidget(self.book)
-        self.collection.currentTextChanged.connect(self.update_book_list)
+
+        self.book_table = QTableWidget(0,1)
+        self.book_table.horizontalHeader().hide()
+        self.book_table.verticalHeader().hide()
+        self.book_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.book_table.itemSelectionChanged.connect(self.update_chapter_table)
+        self.book_table.setColumnWidth(0, self.book_table.width())
+        self.book_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.text_layout.addWidget(self.book_table)
 
 
         # Choose a chapter from a table menu
-        self.chapter_label = QLabel("<br>Select a chapter")
-        self.layout_right.addWidget(self.chapter_label)
+        self.chapter_label = QLabel("<b>Select at least one chapter</b>")
+        self.chapter_label.setToolTip("Click to select one at a time.<br>Click and drag to select multiple.<br>Use the button at the bottom to quickly select and deselect chapters.")
+        self.table_layout.addWidget(self.chapter_label)
 
-        self.chapterList = QTableWidget(0, 1, self)
-        self.chapterList.verticalHeader().hide()
-        self.chapterList.horizontalHeader().hide()
-        self.chapterList.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
-        self.layout_right.addWidget(self.chapterList)
-        self.book.currentTextChanged.connect(self.update_chapter_table)
+        self.chapter_table = QTableWidget(0, 1)
+        self.chapter_table.verticalHeader().hide()
+        self.chapter_table.horizontalHeader().hide()
+        self.chapter_table.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        self.chapter_table.setColumnWidth(0, self.chapter_table.width())
+        self.chapter_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.table_layout.addWidget(self.chapter_table)
 
         # Button to select all
         select_all_button = QPushButton("Select All")
@@ -81,87 +85,91 @@ class TextPicker(QDialog):
         select_none_button.clicked.connect(self.select_none)
         self.buttonlayout.addWidget(select_none_button)
 
-        self.layout_right.addLayout(self.buttonlayout)
+        self.table_layout.addLayout(self.buttonlayout)
 
         # Checkboxes for choosing card layouts
         self.checkBoxes = QHBoxLayout()
 
-        self.card1checkbox = QCheckBox("Grk → Eng")
-        self.card1checkbox.setChecked(self.config["select_card_1"])
+        self.card1checkbox = QCheckBox(f"Grk → {config['lang']}")
+        self.card1checkbox.setChecked(config["select_card_1"])
         self.checkBoxes.addWidget(self.card1checkbox)
 
-        self.card2checkbox = QCheckBox("Eng → Grk")
-        self.card2checkbox.setChecked(self.config["select_card_2"])
+        self.card2checkbox = QCheckBox(f"{config['lang']} → Grk")
+        self.card2checkbox.setChecked(config["select_card_2"])
         self.checkBoxes.addWidget(self.card2checkbox)
 
         self.card3checkbox = QCheckBox("Other cards")
-        self.card3checkbox.setChecked(self.config["select_cards_3+"])
+        self.card3checkbox.setChecked(config["select_card_3"])
+        self.card3checkbox.setStatusTip("Not available for all note types. Check with the creator of your notes. This will usually be gender cards for nouns and/or principles for verbs.")
         self.checkBoxes.addWidget(self.card3checkbox)
-        
-        self.layout_left.addLayout(self.checkBoxes)
-
-        self.layout_left.addStretch()
-
+        self.text_layout.addLayout(self.checkBoxes)
+           
         # Confirmation button
-        self.bottom_layout = QHBoxLayout()
-        self.confirm_layout = QVBoxLayout()
         self.confirmButton = QPushButton("Find Cards...")
         self.confirmButton.clicked.connect(self.readiness_check)
-        self.confirm_layout.addWidget(self.confirmButton)
+        self.text_layout.addWidget(self.confirmButton)
 
         # Settings Button
-        self.settingsButton = QPushButton("Settings")
-        self.settingsButton.clicked.connect(self.show_settings)
-        self.confirm_layout.addWidget(self.settingsButton)
-        self.bottom_layout.addLayout(self.confirm_layout)
-        self.bottom_layout.addStretch()
-        self.layout_left.addLayout(self.bottom_layout)
+        self.bottom_layout = QHBoxLayout()
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.close)
+        self.bottom_layout.addWidget(self.cancel_button)
+        self.settings_button = QPushButton("Settings")
+        self.settings_button.clicked.connect(self.show_settings)
+        self.bottom_layout.addWidget(self.settings_button)
+        self.text_layout.addLayout(self.bottom_layout)
 
 
-        self.layout.addLayout(self.layout_left)
-        self.layout.addLayout(self.layout_right)
+        self.layout.addLayout(self.text_layout)
+        self.layout.addLayout(self.table_layout)
 
         self.setLayout(self.layout)
+
+        self.update_book_table()
+
     
 
     # Select all rows in the chapter table
     def select_all(self):
-        self.chapterList.selectAll()
+        self.chapter_table.selectAll()
 
 
     # Unselect all rows in the chapter table
     def select_none(self):
-        self.chapterList.clearSelection()
+        self.chapter_table.clearSelection()
 
 
     # Repopulate the book list
     # Called when the collection is changed
-    def update_book_list(self):
-        self.book.clear()
-
-        self.book_list_label.setText(f"Select a {self.collection.currentText()} book")
+    def update_book_table(self):
+        self.book_list_label.setText(f"<b>Select a {self.collection.currentText()} book</b>")
+        self.book_table.clearContents()
+        self.chapter_table.clearContents()
+        self.chapter_table.setRowCount(0)
 
         if self.collection.currentText() == "New Testament":
-            self.book.addItem("")
-            self.book.addItems(NT_book_list)
+            self.book_table.setRowCount(len(NT_book_list))
+            for index, book in enumerate(NT_book_list):
+                item = QTableWidgetItem(book)
+                self.book_table.setItem(index,0, item)
         
         if self.collection.currentText() == "Septuagint":
-            self.book.addItem("")
-            self.book.addItems(LXX_book_list)
+            self.book_table.setRowCount(len(LXX_book_list))
+            for index, book in enumerate(LXX_book_list):
+                item = QTableWidgetItem(book)
+                self.book_table.setItem(index,0, item)
 
 
     # Repopulate the chapter list
     # Called when the book is changed
     def update_chapter_table(self):
-        self.chapterList.clearContents()
-        
-        # Collection changed -> Do nothing
-        if self.book.currentText() == "":
-            pass
-        
-        # Book changed -> Rebuild chapter list
-        else:
-            file_path = self.getFilePath()
+        self.chapter_table.clearContents()
+        self.chapter_table.setRowCount(0)
+
+        try:
+            self.selectedText = self.book_table.selectedItems()[0].text()
+
+            file_path = self.get_file_path()
             with open(file_path, "r") as book_file:
             
                 chapter_dict = json.load(book_file)
@@ -170,29 +178,23 @@ class TextPicker(QDialog):
                 for chapter in chapter_dict:
                     chapter_list.append(chapter)
 
-                added_rows = 0
-
-                self.chapterList.setRowCount(len(chapter_list))
+                self.chapter_table.setRowCount(len(chapter_list))
             
-                for chapterNumber in chapter_list:
-
+                for index, chapterNumber in enumerate(chapter_list):
                     item = QTableWidgetItem(chapterNumber)
-
                     item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
-                    #item.setCheckState(Qt.CheckState.Unchecked)
-
-                    self.chapterList.setItem(1,added_rows-1, item)
-                    added_rows += 1
+                    self.chapter_table.setItem(index,0, item)
+        except:
+            pass
             
-            #self.chapterList.resizeColumnsToContents()
 
 
     # Check to make sure all components are prepared. Do not continue if failed.
     # Called by confirmation button in set_UI
     def readiness_check(self):
-        if self.book.currentText() == "":   # Check for a book option.
+        if len(self.book_table.selectedItems()) == 0:   # Check for a book option.
             showInfo("No text selected")
-        elif len(self.chapterList.selectedItems()) == 0:
+        elif len(self.chapter_table.selectedItems()) == 0:
             showInfo("No chapters selected")
         elif not (self.card1checkbox.isChecked() or self.card2checkbox.isChecked() or self.card3checkbox.isChecked()):   # Make sure at least one card type is checked
             showInfo("At least one card type must be selected")
@@ -204,7 +206,6 @@ class TextPicker(QDialog):
     def show_settings(self) -> None:
         self.settings = Configuration()
         self.settings.show()
-
 
 
     # Build a string to be added to the search query when building the deck
@@ -232,10 +233,9 @@ class TextPicker(QDialog):
 
     # Called in readiness_check
     def find_cards_and_make_deck(self):
-        self.selectedText = self.book.currentText()
 
         # Extract data from json file. Used in get_word_list.
-        file_path = self.getFilePath()
+        file_path = self.get_file_path()
         book_file = open(file_path, "r")
         self.book_list = json.load(book_file)
         book_file.close()
@@ -244,7 +244,11 @@ class TextPicker(QDialog):
 
         self.wordsToFind = self.get_word_list()
 
-        showInfo(f"Searching for {len(self.wordsToFind)} words...")
+        chapter_range = self.format_range(self.chapter_numbers)
+
+        self.selectedText += " " + chapter_range
+
+        tooltip(f"Searching for {len(self.wordsToFind)} words...")
 
         self.total = len(self.wordsToFind)
 
@@ -255,13 +259,36 @@ class TextPicker(QDialog):
 
     # Called in find_cards_and_make_deck
     def get_word_list(self) -> dict:
-        chapters = [chap.text() for chap in self.chapterList.selectedItems()]
+        chapters = [chap.text() for chap in self.chapter_table.selectedItems()]
+        self.chapter_numbers = []
         book_list = self.book_list
-        self.selectedText = self.book.currentText()
+        self.selectedText = self.book_table.selectedItems()[0].text()
         wordsToFind = {}
+        self.ignored_words = []
         n = 0
+
+        with open(path.join(current_directory, "user_files/ignore.json"), "r+") as file:
+            ignore_list = json.load(file)
+        with open(path.join(current_directory, "user_files/corrections.json"), "r+") as file:
+            corrections = json.load(file)
+        with open(path.join(current_directory, "auto_corrections.json"), "r+") as file:
+            auto_corrections = json.load(file)
+            for correction in auto_corrections:
+                corrections[correction] = auto_corrections[correction]["replacement"]
+        
         for chapter in chapters:
+            chapter_number = int(chapter.replace(f"{self.selectedText} ", ""))
+            self.chapter_numbers.append(chapter_number)
             for word in book_list[chapter]:
+                for char in forbidden_characters:
+                    word = word.replace(char, "")
+                if word in ignore_list:
+                    if word not in self.ignored_words:
+                        self.ignored_words.append(word)
+                    continue
+                correction = corrections.get(word)
+                if correction is not None and correction != "":
+                    word = correction
                 if word not in wordsToFind:
                     n += 1
                     wordsToFind[word] = {"order": n, "freq": 1}
@@ -271,21 +298,43 @@ class TextPicker(QDialog):
         self.numWordsToFind = len(wordsToFind)
 
         return wordsToFind
+    
+    def format_range(self, int_list):
+    
+        ranges = []
+        start = int_list[0]
+        end = int_list[0]
+
+        for num in int_list[1:]:
+            if num == end + 1:
+                end = num
+            else:
+                if start == end:
+                    ranges.append(str(start).zfill(len(str(int_list[-1]))))
+                else:
+                    ranges.append(f"{start:0{len(str(int_list[-1]))}}-{end:0{len(str(int_list[-1]))}}")
+                start = end = num
+
+        if start == end:
+            ranges.append(str(start).zfill(len(str(int_list[-1]))))
+        else:
+            ranges.append(f"{start:0{len(str(int_list[-1]))}}-{end:0{len(str(int_list[-1]))}}")
+
+        return ", ".join(ranges)
+
 
     # Get the storage file path for the selected text
     # Called in update_chapter_list to populate the chapter list
     # Called in get_word_list
-    def getFilePath(self):
-        current_book = self.book.currentText()
+    def get_file_path(self):
+        current_book = self.selectedText
 
         if self.collection.currentText() == "New Testament":
             book_number = NT_book_list.index(current_book) + 1
         if self.collection.currentText() == "Septuagint":
             book_number = LXX_book_list.index(current_book) + 1
-    
-        #self.chapterList.addItem("Whole Book")
 
-        file_path = path.join(current_directory, f"{self.collection.currentText()} Files", f"{str(book_number).zfill(2)} {current_book}.json")
+        file_path = path.join(current_directory, f"Texts/{self.collection.currentText()} Files", f"{str(book_number).zfill(2)} {current_book}.json")
 
         return file_path
     
@@ -301,9 +350,10 @@ class TextPicker(QDialog):
         for word in self.wordsToFind:
             self.show_search_warning = False
             self.search_query_num = 0
-            if self.config['strict'] == True:    # Narrow search using strict settings
-                field = self.config['field_name']
-                note_type = self.config['note_type']
+            query = f"\"re:^{word}([ ,]|\\W)\"" # Default search
+            if config['strict'] == True:    # Narrow search using strict settings
+                field = config['field_name']
+                note_type = config['note_type']
                 if field and not note_type:
                     query = f"\"{field}:re:^{word}([ ,]|\\W)\""
                 elif not field and note_type:
@@ -312,10 +362,7 @@ class TextPicker(QDialog):
                     query = f"\"note:{note_type}\" \"{field}:re:^{word}([ ,]|\\W)\""
                 else:
                     self.show_search_warning = True
-                    query = f"\"re:^{word}([ ,]|\\W)\""
-            else:                        # Broad search using only word
-                query = f"\"re:^{word}([ ,]|\\W)\""
-
+                
             ids = self.col.findNotes(query)
             
             for note_id in ids:
@@ -343,17 +390,17 @@ class TextPicker(QDialog):
         if self.numMissingWords:
             self.log_missing_words()   # 
 
-
     # Keep a record of words that are not found
     # Called at the end of find_words
     def log_missing_words(self) -> None:
-        with open(path.join(path.dirname(path.abspath(__file__)), "log.log"), "a") as log:
-            log.write("="*50)
-            log.write(f"\n\n{datetime.datetime.now()}\n\nAttempted to create {self.selectedText} deck. Missing words:\n\n")
+        with open(path.join(path.dirname(path.abspath(__file__)), "user_files/missing.json"), "r") as log_file:
+            log = json.load(log_file)
+            date = datetime.datetime.now().strftime("%b %d, %Y")
             for word in self.missingWords:
-                log.write(word)
-                log.write("\n")
-            log.write("\n")
+                if word not in log:
+                    log[word] = {"text": self.selectedText, "date": date}
+        with open(path.join(path.dirname(path.abspath(__file__)), "user_files/missing.json"), "w") as log_file:
+            json.dump(log, log_file, ensure_ascii=False, indent=4)
 
 
     # Update the progress bar
@@ -367,18 +414,7 @@ class TextPicker(QDialog):
     # Called by query_op in find_cards_and_make_deck on completion
     def success(self, dummy):
 
-        if self.show_search_warning:
-            showInfo("Default search settings used<br><br>Turn off Strict or add Field or Note Type requirements")
-            
-        textToAdd = "<br><br>No missing words"
-        if self.numMissingWords != 0:
-            textToAdd = f"<br><br>Missing words: {self.numMissingWords}. See <a href=\"file:///{current_directory}\\log.log\">log</a>."
-        if not self.config['strict']:
-            textToAdd += "<br><br>If you receive extraneous words,<br>try changing the settings to search<br>for a specific note type and/or<br>field name and set strict to true<br><br>Tools→Add-ons→Config"
-
         self.create_deck()
-        
-        showInfo(f"Deck created: {self.selectedText}. Words found: {self.found_count}{textToAdd}")
 
         self.hide()   # Close window
 
@@ -392,26 +428,51 @@ class TextPicker(QDialog):
 
         self.col.tags.bulkAdd(self.idList, self.tag_name)
 
-        deckName = ""
+        deck_name = ""
 
         # If parent deck spcified in the add-on confguration, add it to the name of the temporary deck.
-        parent_deck = self.config["parent_deck"]
+        parent_deck = config["parent_deck"]
         if parent_deck:
-            parent_deck = parent_deck.replace("&book&", self.selectedText)
-            deckName += parent_deck + "::"
+            parent_deck = parent_deck.replace("$book$", self.book_table.selectedItems()[0].text())
+            deck_name = parent_deck + "::"
 
-        deckName += f"{self.selectedText}"
+        deck_name += f"{self.selectedText}"
 
         searchQuery = f"tag:{self.tag_name} is:new {self.cards_to_find}"
 
         # Make deck
-        did = self.col.decks.new_filtered(deckName)
+        did = self.col.decks.new_filtered(deck_name)
         deck = self.col.decks.get(did)
-        deck["terms"] = [[searchQuery, self.config["deck_size_limit"], DYN_DUE]]
+        
+        card_limit = config["deck_size_limit"]
+        if card_limit == "":
+            card_limit = 9999
+        deck["terms"] = [[searchQuery, card_limit, DYN_DUE]]
         self.col.decks.save(deck)
         self.col.sched.rebuildDyn(did)
 
         # Delete tag from collection
         tags_manager = tags.TagManager(self.col)
         tags_manager.remove(self.tag_name)
+
+        count = self.col.decks.card_count(dids=did, include_subdecks=False)
+
+        if self.show_search_warning:
+            showInfo("<p>Default search settings used.</p><p>Check search settings.</p>")
+            
+        textToAdd = "<p>No missing words</p>"
+        if self.numMissingWords != 0:
+            textToAdd = f"<p>Missing words: {self.numMissingWords}. Check the settings for more info.</p>"
+        if len(self.ignored_words) > 0:
+            textToAdd += f"<p>Ignored {len(self.ignored_words)}.</p>"
+        if not config['strict']:
+            textToAdd += "<p>If you receive extraneous words,<br>try changing the settings to search<br>for a specific note type and/or field.</p>"
+
+        if count == 0:
+            showInfo("All words learned, filtered, or ignored")
+            self.col.decks.remove([did])
+            tooltip(f"Deck deleted: {self.selectedText}")
+        else:
+            showInfo(f"<div style=\"width:20em\"><p>Deck created: {self.selectedText}.</p><p>Words found: {self.found_count}{textToAdd}</p></div>")
+
 

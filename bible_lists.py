@@ -37,6 +37,7 @@ OT_book_list = ['Genesis',
             'Haggai',
             'Zechariah',
             'Malachi']
+
 NT_book_list = ['Matthew',
             'Mark',
             'Luke',

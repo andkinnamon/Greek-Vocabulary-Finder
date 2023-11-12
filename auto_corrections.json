@@ -1,0 +1,38 @@
+{
+    "τις": {
+        "replacement": "τὶς",
+        "display": true
+    },
+    "ἡμᾶς": {
+        "replacement": "ἡμεῖς",
+        "display": true
+    },
+    "ἡμῖν": {
+        "replacement": "ἡμεῖς",
+        "display": true
+    },
+    "ἡμῶν": {
+        "replacement": "ἡμεῖς",
+        "display": true
+    },
+    "ὑμᾶς": {
+        "replacement": "ἡμεῖς",
+        "display": true
+    },
+    "ὑμῖν": {
+        "replacement": "ἡμεῖς",
+        "display": true
+    },
+    "ὑμῶν": {
+        "replacement": "ἡμεῖς",
+        "display": true
+    },
+    "ἐμοί": {
+        "replacement": "ἐγώ",
+        "display": true
+    },
+    "ἐμοῦ": {
+        "replacement": "ἐγώ",
+        "display": true
+    }
+}

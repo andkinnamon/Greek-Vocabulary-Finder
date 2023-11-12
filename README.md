@@ -18,26 +18,30 @@ Development Roadmap:
 
         - Deponent/Active
 
-    - User-added corrections
-
-        - Option window
-
-        - Table
-
-        - Ignore list
+    - ~~User Corrections~~ (1.0.0)
 
 2. Error handling
 
-    -   Notes found, “new” search empty =\> “All words have been learned”
+    -   ~~Notes found, “new” search empty =\> “All words have been learned”~~
 
     -   No notes found =\> “Check default configuration”
+
+3. Help page
+
+4. Option to create deck for each chapter selection
+
+    - Requires parent deck
+
+
 
 Expansion Roadmap:
 ------------------
 
-1.  Perseus
+1.  [Perseus](https://github.com/gcelano/LemmatizedAncientGreekXML)
 
-2.  Greek Church Fathers
+2.  [Greek Church Fathers](http://patristica.net/graeca/PG-IndexAuthorWeb.htm)
+
+    - Must be converted from PDFs and lemmatized.
 
     1.  Apostolic Fathers
 

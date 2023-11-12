@@ -1,0 +1,12 @@
+{
+    "parent_deck": "",
+    "note_type": "",
+    "field_name": "",
+    "strict": false,
+    "select_card_1": true,
+    "select_card_2": true,
+    "select_card_3": false,
+    "deck_size_limit": 9999,
+    "language": "English",
+    "collection": "New Testament"
+}
